@@ -1,0 +1,4 @@
+Git binary: git (available: NO)
+Detected repo: C:\Users\fildo\Downloads\Programing\horror
+Found tasks: 1
+  [1] Branch: master, Name: master, Status: available/dormant, TM: , Available: NO
