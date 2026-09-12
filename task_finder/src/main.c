@@ -8,14 +8,20 @@
 #include <ctype.h>
 #include <time.h>
 
+#include <sys/stat.h>
+
 #ifdef _WIN32
     #define popen _popen
     #define pclose _pclose
     #define strcasecmp _stricmp
     #define strncasecmp _strnicmp
+    #define NULL_DEV "2>nul"
+    __declspec(dllimport) unsigned long __stdcall GetModuleFileNameA(void *hModule, char *lpFilename, unsigned long nSize);
+    __declspec(dllimport) unsigned long __stdcall GetFullPathNameA(const char *lpFileName, unsigned long nBufferLength, char *lpBuffer, char **lpFilePart);
 #else
     #include <unistd.h>
     #include <strings.h>
+    #define NULL_DEV "2>/dev/null"
 #endif
 
 #define MAX_TASKS 256
@@ -216,12 +222,98 @@ static bool ParseDeadline(const char *str, int *out_y, int *out_m, int *out_d) {
 // -----------------------------------------------------------------------------
 // GIT FUNKCE
 // -----------------------------------------------------------------------------
+static char g_git_cmd[512] = "git";
+static bool g_git_available = false;
+
+static bool TestGitCommand(const char *cmd_to_test) {
+    char check_cmd[1024];
+#ifdef _WIN32
+    snprintf(check_cmd, sizeof(check_cmd), "\"\"%s\" --version\" %s", cmd_to_test, NULL_DEV);
+#else
+    snprintf(check_cmd, sizeof(check_cmd), "\"%s\" --version %s", cmd_to_test, NULL_DEV);
+#endif
+    FILE *p = popen(check_cmd, "r");
+    if (!p) return false;
+    char buf[128] = "";
+    bool ok = (fgets(buf, sizeof(buf), p) != NULL);
+    pclose(p);
+    return ok;
+}
+
+static void DetectGitBinary(void) {
+    if (TestGitCommand("git")) {
+        strcpy(g_git_cmd, "git");
+        g_git_available = true;
+        return;
+    }
+
+#ifdef _WIN32
+    const char *common_paths[] = {
+        "C:\\Program Files\\Git\\cmd\\git.exe",
+        "C:\\Program Files\\Git\\bin\\git.exe",
+        "C:\\Program Files (x86)\\Git\\cmd\\git.exe",
+        "C:\\Program Files (x86)\\Git\\bin\\git.exe",
+        NULL
+    };
+
+    for (int i = 0; common_paths[i]; i++) {
+        if (TestGitCommand(common_paths[i])) {
+            strncpy(g_git_cmd, common_paths[i], sizeof(g_git_cmd) - 1);
+            g_git_cmd[sizeof(g_git_cmd) - 1] = '\0';
+            g_git_available = true;
+            return;
+        }
+    }
+
+    const char *localappdata = getenv("LOCALAPPDATA");
+    if (localappdata) {
+        char p1[512], p2[512];
+        snprintf(p1, sizeof(p1), "%s\\Programs\\Git\\cmd\\git.exe", localappdata);
+        if (TestGitCommand(p1)) {
+            strncpy(g_git_cmd, p1, sizeof(g_git_cmd) - 1);
+            g_git_cmd[sizeof(g_git_cmd) - 1] = '\0';
+            g_git_available = true;
+            return;
+        }
+        snprintf(p2, sizeof(p2), "%s\\Programs\\Git\\bin\\git.exe", localappdata);
+        if (TestGitCommand(p2)) {
+            strncpy(g_git_cmd, p2, sizeof(g_git_cmd) - 1);
+            g_git_cmd[sizeof(g_git_cmd) - 1] = '\0';
+            g_git_available = true;
+            return;
+        }
+    }
+
+    const char *userprofile = getenv("USERPROFILE");
+    if (userprofile) {
+        char p_scoop[512];
+        snprintf(p_scoop, sizeof(p_scoop), "%s\\scoop\\shims\\git.exe", userprofile);
+        if (TestGitCommand(p_scoop)) {
+            strncpy(g_git_cmd, p_scoop, sizeof(g_git_cmd) - 1);
+            g_git_cmd[sizeof(g_git_cmd) - 1] = '\0';
+            g_git_available = true;
+            return;
+        }
+    }
+#endif
+
+    g_git_available = false;
+}
+
 static bool ExecuteGit(const char *repo_dir, const char *args, char *output, size_t max_len) {
-    char cmd[1024];
+    char cmd[2048];
     if (repo_dir && strlen(repo_dir) > 0) {
-        snprintf(cmd, sizeof(cmd), "git -C \"%s\" %s 2>/dev/null", repo_dir, args);
+#ifdef _WIN32
+        snprintf(cmd, sizeof(cmd), "\"\"%s\" -c safe.directory=* -C \"%s\" %s\" %s", g_git_cmd, repo_dir, args, NULL_DEV);
+#else
+        snprintf(cmd, sizeof(cmd), "\"%s\" -C \"%s\" %s %s", g_git_cmd, repo_dir, args, NULL_DEV);
+#endif
     } else {
-        snprintf(cmd, sizeof(cmd), "git %s 2>/dev/null", args);
+#ifdef _WIN32
+        snprintf(cmd, sizeof(cmd), "\"\"%s\" -c safe.directory=* %s\" %s", g_git_cmd, args, NULL_DEV);
+#else
+        snprintf(cmd, sizeof(cmd), "\"%s\" %s %s", g_git_cmd, args, NULL_DEV);
+#endif
     }
 
     FILE *pipe = popen(cmd, "r");
@@ -237,22 +329,124 @@ static bool ExecuteGit(const char *repo_dir, const char *args, char *output, siz
     return (total > 0);
 }
 
+static bool DirHasGit(const char *dir) {
+    if (!dir || strlen(dir) == 0) return false;
+    char path[1024];
+    snprintf(path, sizeof(path), "%s/.git", dir);
+    struct stat st;
+    return (stat(path, &st) == 0);
+}
+
+static bool WalkUpForGit(const char *start_dir, char *out_repo, size_t max_len) {
+    if (!start_dir || strlen(start_dir) == 0) return false;
+    char current[1024] = "";
+#ifdef _WIN32
+    if (!GetFullPathNameA(start_dir, sizeof(current), current, NULL)) {
+        strncpy(current, start_dir, sizeof(current) - 1);
+        current[sizeof(current) - 1] = '\0';
+    }
+#else
+    char *res = realpath(start_dir, NULL);
+    if (res) {
+        snprintf(current, sizeof(current), "%s", res);
+        free(res);
+    } else {
+        snprintf(current, sizeof(current), "%s", start_dir);
+    }
+#endif
+
+    while (strlen(current) > 0) {
+        if (DirHasGit(current)) {
+            snprintf(out_repo, max_len, "%s", current);
+            return true;
+        }
+
+        char *last_slash = strrchr(current, '/');
+#ifdef _WIN32
+        char *last_bslash = strrchr(current, '\\');
+        if (last_bslash && (!last_slash || last_bslash > last_slash)) {
+            last_slash = last_bslash;
+        }
+#endif
+        if (!last_slash || last_slash == current) {
+            break;
+        }
+        *last_slash = '\0';
+    }
+    return false;
+}
+
+static bool GetExecutableDir(char *out_dir, size_t max_len) {
+    out_dir[0] = '\0';
+#ifdef _WIN32
+    char exe_path[1024] = "";
+    if (GetModuleFileNameA(NULL, exe_path, sizeof(exe_path)) > 0) {
+        char *last_slash = strrchr(exe_path, '\\');
+        if (!last_slash) last_slash = strrchr(exe_path, '/');
+        if (last_slash) {
+            *last_slash = '\0';
+            snprintf(out_dir, max_len, "%s", exe_path);
+            return true;
+        }
+    }
+#else
+    char exe_path[1024] = "";
+    ssize_t len = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
+    if (len > 0) {
+        exe_path[len] = '\0';
+        char *last_slash = strrchr(exe_path, '/');
+        if (last_slash) {
+            *last_slash = '\0';
+            snprintf(out_dir, max_len, "%s", exe_path);
+            return true;
+        }
+    }
+#endif
+    return false;
+}
+
 static void FindRepoRoot(char *out_repo, size_t max_len) {
+    char found[1024] = "";
+
+    // 1. Walk up from current working directory
+    if (WalkUpForGit(".", found, sizeof(found))) {
+        snprintf(out_repo, max_len, "%s", found);
+        return;
+    }
+
+    // 2. Walk up from executable directory
+    char exe_dir[1024] = "";
+    if (GetExecutableDir(exe_dir, sizeof(exe_dir))) {
+        if (WalkUpForGit(exe_dir, found, sizeof(found))) {
+            snprintf(out_repo, max_len, "%s", found);
+            return;
+        }
+    }
+
+    // 3. Fallback: ask git rev-parse (if git is available)
     char buf[512] = "";
     if (ExecuteGit(".", "rev-parse --show-toplevel", buf, sizeof(buf))) {
         char *trimmed = TrimWhitespace(buf);
-        strncpy(out_repo, trimmed, max_len - 1);
-        out_repo[max_len - 1] = '\0';
-        return;
+        if (trimmed && strlen(trimmed) > 0) {
+            snprintf(out_repo, max_len, "%s", trimmed);
+            return;
+        }
     }
-    // Záložní pokus o úroveň výš
-    if (ExecuteGit("..", "rev-parse --show-toplevel", buf, sizeof(buf))) {
+
+    if (strlen(exe_dir) > 0 && ExecuteGit(exe_dir, "rev-parse --show-toplevel", buf, sizeof(buf))) {
         char *trimmed = TrimWhitespace(buf);
-        strncpy(out_repo, trimmed, max_len - 1);
-        out_repo[max_len - 1] = '\0';
-        return;
+        if (trimmed && strlen(trimmed) > 0) {
+            snprintf(out_repo, max_len, "%s", trimmed);
+            return;
+        }
     }
-    strncpy(out_repo, ".", max_len - 1);
+
+    // 4. Ultimate fallback
+    if (strlen(exe_dir) > 0) {
+        snprintf(out_repo, max_len, "%s", exe_dir);
+    } else {
+        snprintf(out_repo, max_len, ".");
+    }
 }
 
 static void GetGitHubBaseUrl(const char *repo_dir, char *out_url, size_t max_len) {
@@ -487,8 +681,7 @@ static void LoadAllTasks(const char *repo_dir, const char *github_base, TaskList
 
             if (!seen && strlen(branch_clean) > 0 && seen_count < MAX_TASKS) {
                 int s_idx = seen_count++;
-                strncpy(seen_branches[s_idx], branch_clean, sizeof(seen_branches[0]) - 1);
-                seen_branches[s_idx][sizeof(seen_branches[0]) - 1] = '\0';
+                snprintf(seen_branches[s_idx], sizeof(seen_branches[s_idx]), "%s", branch_clean);
 
                 char show_cmd[512];
                 snprintf(show_cmd, sizeof(show_cmd), "show \"%s:TASK.md\"", t);
@@ -686,6 +879,8 @@ int main(int argc, char **argv) {
         }
     }
 
+    DetectGitBinary();
+
     if (strlen(repo_dir) == 0) {
         FindRepoRoot(repo_dir, sizeof(repo_dir));
     }
@@ -695,6 +890,21 @@ int main(int argc, char **argv) {
 
     static TaskList all_tasks;
     LoadAllTasks(repo_dir, github_base, &all_tasks);
+
+    // Write diagnostic log for easy troubleshooting
+    FILE *log_f = fopen("task_finder_log.txt", "w");
+    if (log_f) {
+        fprintf(log_f, "Git binary: %s (available: %s)\n", g_git_cmd, g_git_available ? "YES" : "NO");
+        fprintf(log_f, "Detected repo: %s\n", repo_dir);
+        fprintf(log_f, "Found tasks: %d\n", all_tasks.count);
+        for (int i = 0; i < all_tasks.count; i++) {
+            fprintf(log_f, "  [%d] Branch: %s, Name: %s, Status: %s, TM: %s, Available: %s\n",
+                    i + 1, all_tasks.items[i].branch, all_tasks.items[i].name,
+                    all_tasks.items[i].status, all_tasks.items[i].task_master,
+                    all_tasks.items[i].is_available ? "YES" : "NO");
+        }
+        fclose(log_f);
+    }
 
     if (force_cli) {
         RunCliMode(&all_tasks, cli_user);
@@ -709,7 +919,12 @@ int main(int argc, char **argv) {
     InitWindow(screenWidth, screenHeight, "Task Finder - Horror Project");
 
     if (!IsWindowReady()) {
-        printf("[INFO] Grafické okno se nepodařilo otevřít, spouštím v terminálovém režimu...\n");
+        printf("[INFO] Graphical window could not be opened, falling back to CLI mode...\n");
+        FILE *err_f = fopen("task_finder_error.log", "w");
+        if (err_f) {
+            fprintf(err_f, "Graphical window failed to initialize (OpenGL/driver issue). Running in fallback mode.\n");
+            fclose(err_f);
+        }
         RunCliMode(&all_tasks, cli_user);
         return 0;
     }
@@ -743,6 +958,24 @@ int main(int argc, char **argv) {
     Color colRed       = (Color){ 220, 53, 69, 255 };
 
     while (!WindowShouldClose()) {
+        // Drag & Drop repo directory support
+        if (IsFileDropped()) {
+            FilePathList dropped = LoadDroppedFiles();
+            if (dropped.count > 0) {
+                char new_repo[512] = "";
+                if (WalkUpForGit(dropped.paths[0], new_repo, sizeof(new_repo))) {
+                    strncpy(repo_dir, new_repo, sizeof(repo_dir) - 1);
+                } else {
+                    strncpy(repo_dir, dropped.paths[0], sizeof(repo_dir) - 1);
+                }
+                repo_dir[sizeof(repo_dir) - 1] = '\0';
+                GetGitHubBaseUrl(repo_dir, github_base, sizeof(github_base));
+                LoadAllTasks(repo_dir, github_base, &all_tasks);
+                current_screen = SCREEN_LOGIN;
+            }
+            UnloadDroppedFiles(dropped);
+        }
+
         // Logika obrazovek
         if (current_screen == SCREEN_LOGIN) {
             int key = GetCharPressed();
@@ -869,9 +1102,17 @@ int main(int argc, char **argv) {
             DrawText(btnTxt, (int)(btnCheck.x + btnCheck.width / 2 - MeasureText(btnTxt, 18) / 2), (int)(btnCheck.y + 13), 18, RAYWHITE);
 
             // Repository info at bottom
-            char info_buf[256];
-            snprintf(info_buf, sizeof(info_buf), "Found %d branches in repository", all_tasks.count);
-            DrawText(info_buf, screenWidth / 2 - MeasureText(info_buf, 14) / 2, screenHeight - 35, 14, DARKGRAY);
+            char info_buf[512];
+            if (!g_git_available) {
+                snprintf(info_buf, sizeof(info_buf), "Git executable not found in PATH or standard install locations!");
+                DrawText(info_buf, screenWidth / 2 - MeasureText(info_buf, 14) / 2, screenHeight - 35, 14, (Color){ 220, 80, 80, 255 });
+            } else if (all_tasks.count > 0) {
+                snprintf(info_buf, sizeof(info_buf), "Repository: %s (%d task branches)", repo_dir, all_tasks.count);
+                DrawText(info_buf, screenWidth / 2 - MeasureText(info_buf, 14) / 2, screenHeight - 35, 14, DARKGRAY);
+            } else {
+                snprintf(info_buf, sizeof(info_buf), "Repository: %s (0 task branches)  [Tip: Drag & drop folder here]", repo_dir);
+                DrawText(info_buf, screenWidth / 2 - MeasureText(info_buf, 14) / 2, screenHeight - 35, 14, (Color){ 220, 150, 50, 255 });
+            }
 
         } else if (current_screen == SCREEN_ACTIVE_TASK) {
             // SCREEN: ACTIVE TASK ASSIGNED

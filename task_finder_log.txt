@@ -1,0 +1,4 @@
+Git binary: git (available: NO)
+Detected repo: Z:\home\qubas9\Documents\Type3Games\horror
+Found tasks: 1
+  [1] Branch: master, Name: master, Status: available/dormant, TM: , Available: NO
