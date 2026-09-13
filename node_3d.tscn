@@ -1,0 +1,51 @@
+[gd_scene format=3 uid="uid://mgp02mkor0at"]
+
+[ext_resource type="Script" uid="uid://b0gd8hrqpvtbb" path="res://player.gd" id="1_a202f"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_noarx"]
+sky_top_color = Color(0.26387188, 0.44168085, 0.74751115, 1)
+sky_horizon_color = Color(0.6150439, 0.65174615, 0.7192037, 1)
+ground_horizon_color = Color(0.6150439, 0.65174615, 0.7192037, 1)
+
+[sub_resource type="Sky" id="Sky_a0tk4"]
+sky_material = SubResource("ProceduralSkyMaterial_noarx")
+
+[sub_resource type="Environment" id="Environment_r3fl7"]
+background_mode = 2
+sky = SubResource("Sky_a0tk4")
+glow_enabled = true
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_bhunq"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_riqys"]
+
+[node name="Node3D" type="Node3D" unique_id=1869620521]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=480150598]
+environment = SubResource("Environment_r3fl7")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=987809176]
+transform = Transform3D(-0.8660254, -0.43301278, 0.25, 0, 0.49999997, 0.86602545, -0.50000006, 0.75, -0.43301266, 0, 4.0804663, 0)
+shadow_enabled = true
+
+[node name="CSGBox3D" type="CSGBox3D" parent="." unique_id=10245486]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.23071289)
+use_collision = true
+size = Vector3(6, 0.05, 6)
+
+[node name="player" type="CharacterBody3D" parent="CSGBox3D" unique_id=1702332297]
+script = ExtResource("1_a202f")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="CSGBox3D/player" unique_id=481795692]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.0487695, 0)
+mesh = SubResource("CapsuleMesh_bhunq")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="CSGBox3D/player" unique_id=1486005681]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.0487695, 0)
+shape = SubResource("CapsuleShape3D_riqys")
+
+[node name="neck" type="Node3D" parent="CSGBox3D/player" unique_id=1630841683]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5174575, 0.040305376)
+
+[node name="eyes" type="Camera3D" parent="CSGBox3D/player/neck" unique_id=319560549]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.32970667, -0.38810372)
