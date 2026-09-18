@@ -1,15 +1,14 @@
 # NAME
-Prvni Prototype
+HRA
 # DESCRIPTION
-placeholder for description
+grany style Escape room style
 # TASK MASTER
 qubas9
-
 # STATUS
-available/dormant
+available
 # DEADLINE
-placeholder for deadline in yy/MM/DD format
+26/12/12
 # PARENT
 
 # SUBTASKS
-
+[prototype/]

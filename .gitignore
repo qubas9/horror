@@ -1,4 +1,6 @@
 task_finder/test_repo
+task_finder/*_log.txt
+task_finder/*.log
 
 # Godot 4+ specific ignores
 .godot/

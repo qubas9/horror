@@ -9,7 +9,7 @@ CFLAGS_LINUX = $(CFLAGS_COMMON) -I./lib/raylib/linux
 LDFLAGS_LINUX = -L./lib/raylib/linux -lraylib -lGL -lm -lpthread -ldl -lrt -lX11
 
 CFLAGS_WIN = $(CFLAGS_COMMON) -I./lib/raylib/win
-LDFLAGS_WIN = -L./lib/raylib/win -lraylib -lopengl32 -lgdi32 -lwinmm
+LDFLAGS_WIN = -L./lib/raylib/win -lraylib -lopengl32 -lgdi32 -lwinmm -lshell32 -Wl,--stack,16777216
 
 SRCS = src/main.c
 HEADERS = src/score.h
