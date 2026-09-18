@@ -798,31 +798,49 @@ static void AppendStr(char *out, size_t out_max, const char *src) {
     snprintf(out + cur, out_max - cur, "%s", src);
 }
 
-static void GenerateBranchSlug(const char *name, char *out_slug, size_t max_len) {
-    if (!name || !out_slug || max_len < 10) return;
-    strcpy(out_slug, "task/");
-    size_t out_idx = 5;
-    bool last_was_dash = false;
+static void GenerateSubtaskBranchSlug(const char *parent_branch, const char *name, char *out_slug, size_t max_len) {
+    if (!out_slug || max_len < 10) return;
+    out_slug[0] = '\0';
 
-    for (size_t i = 0; name[i] && out_idx < max_len - 2; i++) {
-        unsigned char c = (unsigned char)name[i];
-        if (isalnum(c)) {
-            out_slug[out_idx++] = (char)tolower(c);
-            last_was_dash = false;
-        } else if (c == ' ' || c == '-' || c == '_' || c == '/') {
-            if (!last_was_dash && out_idx > 5) {
-                out_slug[out_idx++] = '-';
-                last_was_dash = true;
-            }
+    char clean_parent[MAX_STR] = "";
+    if (parent_branch && strlen(parent_branch) > 0) {
+        strncpy(clean_parent, parent_branch, sizeof(clean_parent) - 1);
+        clean_parent[sizeof(clean_parent) - 1] = '\0';
+        size_t plen = strlen(clean_parent);
+        while (plen > 0 && (clean_parent[plen - 1] == '/' || clean_parent[plen - 1] == '-')) {
+            clean_parent[--plen] = '\0';
         }
     }
-    while (out_idx > 5 && out_slug[out_idx - 1] == '-') {
-        out_idx--;
+    if (strlen(clean_parent) == 0) {
+        strcpy(clean_parent, "task");
     }
-    if (out_idx == 5) {
-        snprintf(out_slug, max_len, "task/new-task");
+
+    char name_slug[MAX_STR] = "";
+    size_t slug_idx = 0;
+    bool last_dash = false;
+    if (name) {
+        for (size_t i = 0; name[i] && slug_idx < sizeof(name_slug) - 2; i++) {
+            unsigned char c = (unsigned char)name[i];
+            if (isalnum(c)) {
+                name_slug[slug_idx++] = (char)tolower(c);
+                last_dash = false;
+            } else if (c == ' ' || c == '-' || c == '_' || c == '/') {
+                if (!last_dash && slug_idx > 0) {
+                    name_slug[slug_idx++] = '-';
+                    last_dash = true;
+                }
+            }
+        }
+        while (slug_idx > 0 && name_slug[slug_idx - 1] == '-') {
+            name_slug[--slug_idx] = '\0';
+        }
+        name_slug[slug_idx] = '\0';
+    }
+
+    if (strlen(name_slug) == 0) {
+        snprintf(out_slug, max_len, "%s-subtask", clean_parent);
     } else {
-        out_slug[out_idx] = '\0';
+        snprintf(out_slug, max_len, "%s-%s", clean_parent, name_slug);
     }
 }
 
@@ -1958,7 +1976,7 @@ static void RunCliMode(const char *repo_dir, const char *github_base, TaskList *
                 }
 
                 char default_branch[MAX_STR] = "";
-                GenerateBranchSlug(pn, default_branch, sizeof(default_branch));
+                GenerateSubtaskBranchSlug(parent_branch, pn, default_branch, sizeof(default_branch));
 
                 printf("Git Branch [%s]: ", default_branch);
                 char b_in[MAX_STR] = "";
@@ -2086,7 +2104,7 @@ static void RunCliMode(const char *repo_dir, const char *github_base, TaskList *
             }
 
             char default_branch[MAX_STR] = "";
-            GenerateBranchSlug(pn, default_branch, sizeof(default_branch));
+            GenerateSubtaskBranchSlug(parent_branch, pn, default_branch, sizeof(default_branch));
 
             printf("Git Branch [%s]: ", default_branch);
             char b_in[MAX_STR] = "";
@@ -2382,7 +2400,8 @@ int main(int argc, char **argv) {
                         if (form_focus == FIELD_BRANCH) {
                             form_branch_manual = true;
                         } else if (form_focus == FIELD_NAME && !form_branch_manual) {
-                            GenerateBranchSlug(form_name, form_branch, sizeof(form_branch));
+                            const char *p_b = (managed_parent_count > 0) ? managed_parents[form_parent_idx].branch : "task";
+                            GenerateSubtaskBranchSlug(p_b, form_name, form_branch, sizeof(form_branch));
                         }
                     }
                 }
@@ -2399,7 +2418,8 @@ int main(int argc, char **argv) {
                         if (form_focus == FIELD_BRANCH) {
                             form_branch_manual = true;
                         } else if (form_focus == FIELD_NAME && !form_branch_manual) {
-                            GenerateBranchSlug(form_name, form_branch, sizeof(form_branch));
+                            const char *p_b = (managed_parent_count > 0) ? managed_parents[form_parent_idx].branch : "task";
+                            GenerateSubtaskBranchSlug(p_b, form_name, form_branch, sizeof(form_branch));
                         }
                     }
                 }
@@ -2559,6 +2579,12 @@ int main(int argc, char **argv) {
                     form_tm[0] = '\0';
                     form_deadline[0] = '\0';
                     form_parent_idx = 0;
+                    for (int mi = 0; mi < managed_parent_count; mi++) {
+                        if (active_task_count > 0 && strcmp(managed_parents[mi].branch, active_tasks[0].branch) == 0) {
+                            form_parent_idx = mi;
+                            break;
+                        }
+                    }
                     form_focus = FIELD_NAME;
                     form_branch_manual = false;
                 }
@@ -2963,9 +2989,15 @@ int main(int argc, char **argv) {
 
                     if (prevHov && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
                         form_parent_idx = (form_parent_idx - 1 + managed_parent_count) % managed_parent_count;
+                        if (!form_branch_manual && strlen(form_name) > 0) {
+                            GenerateSubtaskBranchSlug(managed_parents[form_parent_idx].branch, form_name, form_branch, sizeof(form_branch));
+                        }
                     }
                     if (nextHov && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
                         form_parent_idx = (form_parent_idx + 1) % managed_parent_count;
+                        if (!form_branch_manual && strlen(form_name) > 0) {
+                            GenerateSubtaskBranchSlug(managed_parents[form_parent_idx].branch, form_name, form_branch, sizeof(form_branch));
+                        }
                     }
                 } else {
                     const char *badge = "[ Only managed task ]";
@@ -3001,7 +3033,13 @@ int main(int argc, char **argv) {
             DrawRectangleRounded(recBranch, 0.12f, 4, (Color){ 22, 24, 30, 255 });
             DrawRectangleRoundedLines(recBranch, 0.12f, 4, (form_focus == FIELD_BRANCH) ? colAccent : (Color){ 60, 66, 80, 255 });
             if (strlen(form_branch) == 0) {
-                DrawText("task/your-task-slug", (int)recBranch.x + 12, (int)recBranch.y + 9, 14, DARKGRAY);
+                char ph[256];
+                if (managed_parent_count > 0) {
+                    snprintf(ph, sizeof(ph), "%s-your-subtask", managed_parents[form_parent_idx].branch);
+                } else {
+                    strcpy(ph, "task/your-subtask");
+                }
+                DrawText(ph, (int)recBranch.x + 12, (int)recBranch.y + 9, 14, DARKGRAY);
             } else {
                 DrawText(form_branch, (int)recBranch.x + 12, (int)recBranch.y + 9, 14, RAYWHITE);
             }
