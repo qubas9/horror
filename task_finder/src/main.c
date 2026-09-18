@@ -838,9 +838,9 @@ static void GenerateSubtaskBranchSlug(const char *parent_branch, const char *nam
     }
 
     if (strlen(name_slug) == 0) {
-        snprintf(out_slug, max_len, "%s-subtask", clean_parent);
+        snprintf(out_slug, max_len, "%s---subtask", clean_parent);
     } else {
-        snprintf(out_slug, max_len, "%s-%s", clean_parent, name_slug);
+        snprintf(out_slug, max_len, "%s---%s", clean_parent, name_slug);
     }
 }
 
@@ -3035,9 +3035,9 @@ int main(int argc, char **argv) {
             if (strlen(form_branch) == 0) {
                 char ph[256];
                 if (managed_parent_count > 0) {
-                    snprintf(ph, sizeof(ph), "%s-your-subtask", managed_parents[form_parent_idx].branch);
+                    snprintf(ph, sizeof(ph), "%s---your-subtask", managed_parents[form_parent_idx].branch);
                 } else {
-                    strcpy(ph, "task/your-subtask");
+                    strcpy(ph, "task/parent---your-subtask");
                 }
                 DrawText(ph, (int)recBranch.x + 12, (int)recBranch.y + 9, 14, DARKGRAY);
             } else {
