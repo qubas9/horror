@@ -1,25 +1,14 @@
 # NAME
-placeholder for name
+HRA
 # DESCRIPTION
-placeholder for description
+grany style Escape room style
 # TASK MASTER
-placeholder for task master's name
-# WORKER (not required key)
-placeholder for worker's name
-placeholder for worker's name
-(free slot signaled by ---)
-...
+qubas9
 # STATUS
-available/dormant
+available
 # DEADLINE
-placeholder for deadline in yy/MM/DD format
+26/12/12
 # PARENT
-[placeholder for parent task name](placeholder for link to git branch on github)
+
 # SUBTASKS
-[placeholder for subtask name](placeholder for link to git branch on github)
-[placeholder for subtask name](placeholder for link to git branch on github)
-...
-# REQUIRED
-[placeholder for required task name](placeholder for link to git branch on github)
-[placeholder for required task name](placeholder for link to git branch on github)
-...
+
