@@ -1,5 +1,4 @@
 Git binary: git (available: YES)
-Detected repo: C:\Users\fildo\Downloads\Programing\horror
-Found tasks: 2
-  [1] Branch: master, Name: master, Status: available/dormant, TM: , Available: NO
-  [2] Branch: prototype, Name: Prvni Prototype, Status: available/dormant, TM: qubas9, Available: NO
+Detected repo: C:\Users\jirim\Desktop\Vše\Type3Games\horror
+Found tasks: 1
+  [1] Branch: master, Name: HRA, Status: available, TM: qubas9, Available: YES
