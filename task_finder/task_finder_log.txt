@@ -1,4 +1,0 @@
-Git binary: git (available: YES)
-Detected repo: C:\Users\jirim\Desktop\Vše\Type3Games\horror
-Found tasks: 1
-  [1] Branch: master, Name: HRA, Status: available, TM: qubas9, Available: YES

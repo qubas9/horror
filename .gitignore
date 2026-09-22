@@ -1,4 +1,5 @@
 task_finder/test_repo
+task_finder/task_finder_log.txt
 task_finder/*_log.txt
 task_finder/*.log
 

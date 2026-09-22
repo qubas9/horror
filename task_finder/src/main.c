@@ -2210,21 +2210,6 @@ int main(int argc, char **argv) {
     static TaskList all_tasks;
     LoadAllTasks(repo_dir, github_base, &all_tasks);
 
-    // Write diagnostic log for easy troubleshooting
-    FILE *log_f = fopen("task_finder_log.txt", "w");
-    if (log_f) {
-        fprintf(log_f, "Git binary: %s (available: %s)\n", g_git_cmd, g_git_available ? "YES" : "NO");
-        fprintf(log_f, "Detected repo: %s\n", repo_dir);
-        fprintf(log_f, "Found tasks: %d\n", all_tasks.count);
-        for (int i = 0; i < all_tasks.count; i++) {
-            fprintf(log_f, "  [%d] Branch: %s, Name: %s, Status: %s, TM: %s, Available: %s\n",
-                    i + 1, all_tasks.items[i].branch, all_tasks.items[i].name,
-                    all_tasks.items[i].status, all_tasks.items[i].task_master,
-                    all_tasks.items[i].is_available ? "YES" : "NO");
-        }
-        fclose(log_f);
-    }
-
     if (force_cli) {
         RunCliMode(repo_dir, github_base, &all_tasks, cli_user);
         return 0;
@@ -2234,16 +2219,10 @@ int main(int argc, char **argv) {
     const int defaultHeight = 640;
 
     SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT);
-    SetTraceLogLevel(LOG_WARNING);
+    SetTraceLogLevel(LOG_NONE);
     InitWindow(defaultWidth, defaultHeight, "Task Finder - Horror Project");
 
     if (!IsWindowReady()) {
-        printf("[INFO] Graphical window could not be opened, falling back to CLI mode...\n");
-        FILE *err_f = fopen("task_finder_error.log", "w");
-        if (err_f) {
-            fprintf(err_f, "Graphical window failed to initialize (OpenGL/driver issue). Running in fallback mode.\n");
-            fclose(err_f);
-        }
         RunCliMode(repo_dir, github_base, &all_tasks, cli_user);
         return 0;
     }
