@@ -3,8 +3,6 @@ HRA
 # DESCRIPTION
 grany style Escape room style
 # TASK MASTER
-qubas9
-# WORKER
 CleanupSiren513
 # STATUS
 available
