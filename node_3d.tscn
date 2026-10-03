@@ -15,6 +15,9 @@ background_mode = 2
 sky = SubResource("Sky_a0tk4")
 glow_enabled = true
 
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_bhunq"]
+albedo_color = Color(0.16007686, 0.42125314, 0.5120225, 1)
+
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_bhunq"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_riqys"]
@@ -29,23 +32,29 @@ transform = Transform3D(-0.8660254, -0.43301278, 0.25, 0, 0.49999997, 0.86602545
 shadow_enabled = true
 
 [node name="CSGBox3D" type="CSGBox3D" parent="." unique_id=10245486]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.23071289)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.010802269, -4.7683716e-07, 0.22046185)
 use_collision = true
-size = Vector3(6, 0.05, 6)
+size = Vector3(10, 0.05, 10)
 
-[node name="player" type="CharacterBody3D" parent="CSGBox3D" unique_id=1702332297]
+[node name="CSGBox3D" type="CSGBox3D" parent="CSGBox3D" unique_id=1109282279]
+transform = Transform3D(0.009161658, 0, -0.99995804, 0, 1, 0, 0.99995804, 0, 0.009161658, 2.6123772, 1.4394786, 0)
+size = Vector3(4, 0.405, 2.5)
+material = SubResource("StandardMaterial3D_bhunq")
+
+[node name="player" type="CharacterBody3D" parent="." unique_id=1702332297]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.23071289)
 script = ExtResource("1_a202f")
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="CSGBox3D/player" unique_id=481795692]
+[node name="MeshInstance3D" type="MeshInstance3D" parent="player" unique_id=481795692]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.0487695, 0)
 mesh = SubResource("CapsuleMesh_bhunq")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="CSGBox3D/player" unique_id=1486005681]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="player" unique_id=1486005681]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.0487695, 0)
 shape = SubResource("CapsuleShape3D_riqys")
 
-[node name="neck" type="Node3D" parent="CSGBox3D/player" unique_id=1630841683]
+[node name="neck" type="Node3D" parent="player" unique_id=1630841683]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5174575, 0.040305376)
 
-[node name="eyes" type="Camera3D" parent="CSGBox3D/player/neck" unique_id=319560549]
+[node name="eyes" type="Camera3D" parent="player/neck" unique_id=319560549]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.32970667, -0.38810372)
